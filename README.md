@@ -1,228 +1,141 @@
-# PDF Translator AI Bot
+# 📄 PDF Translator AI Bot
 
-A production-grade Telegram bot that receives PDFs, automatically detects the source language, lets the user select a target language, and returns a fully translated PDF — preserving text, tables, images (via OCR), and document structure.
+<p align="center">
+  <img src="https://img.shields.io/badge/Python-3.11+-3776AB?style=for-the-badge&logo=python&logoColor=white" alt="Python">
+  <img src="https://img.shields.io/badge/FastAPI-0.100+-009688?style=for-the-badge&logo=fastapi&logoColor=white" alt="FastAPI">
+  <img src="https://img.shields.io/badge/Aiogram-3.0-0088CC?style=for-the-badge&logo=telegram&logoColor=white" alt="Aiogram">
+  <img src="https://img.shields.io/badge/Gemini-2.5_Pro-4285F4?style=for-the-badge&logo=google-gemini&logoColor=white" alt="Gemini">
+  <img src="https://img.shields.io/badge/License-MIT-yellow.svg?style=for-the-badge" alt="License">
+</p>
 
-Powered by **Gemini 2.5 Pro** (LangChain LCEL), **Docling** (PDF parsing), **RapidOCR** (image text extraction), and **Lingua** (language detection).
+A production-grade Telegram bot that receives PDFs, automatically detects the source language, and returns a fully translated version while **preserving document structure, tables, and images**.
 
 ---
 
-## Architecture
+## 🔄 System Workflow
 
-```
-User → PDF → Telegram Bot
-                ↓
-          [Download]
-                ↓
-          Docling Parser
-            ├── Text
-            ├── Tables (→ Markdown)
-            └── Images
-                ↓
-          RapidOCR (text from images)
-                ↓
-          Lingua (language detection)
-                ↓
-          Bot: "Translate to which language?"
-                ↓
-          User selects target language
-                ↓
-          LangChain + Gemini 2.5 Pro
-            ├── Chunking (RecursiveCharacterTextSplitter)
-            ├── Parallel translation (asyncio.gather)
-            └── Preserves markdown, tables, structure
-                ↓
-          Pandoc + WeasyPrint → PDF
-                ↓
-          Bot sends translated PDF
+```mermaid
+graph TD
+    A[👤 User] -->|Sends PDF| B(🤖 Telegram Bot)
+    B -->|Download| C{📄 Docling Parser}
+    
+    subgraph "Extraction Pipeline"
+    C -->|Text & Layout| D[Structural Analysis]
+    C -->|Tables| E[Markdown Conversion]
+    C -->|Images| F[RapidOCR]
+    F -->|Extracted Text| D
+    end
+    
+    D --> G[🌍 Lingua Detection]
+    G -->|Source Language Identified| H(💬 User Selects Target)
+    
+    subgraph "AI Translation (LangChain)"
+    H --> I[Recursive Chunking]
+    I --> J[Parallel LLM Calls]
+    J -->|Gemini 2.5 Pro| K[Context-Aware Translation]
+    end
+    
+    K --> L[🏗️ Reconstruction]
+    L --> M[🎨 Pandoc + WeasyPrint]
+    M -->|Translated PDF| N[✅ Sent to User]
 ```
 
-## Tech Stack
+---
 
-| Component | Technology |
-|-----------|-----------|
-| Web Framework | FastAPI |
-| Telegram Bot | Aiogram v3 |
-| AI Pipeline | LangChain (LCEL) |
-| LLM | Gemini 2.5 Pro |
-| PDF Parsing | Docling |
-| OCR | RapidOCR (ONNX Runtime) |
-| Language Detection | Lingua |
-| PDF Export | Pandoc + WeasyPrint |
-| Config | Pydantic Settings + python-dotenv |
-| Async | asyncio (full async/await) |
+## 🚀 Key Features
 
-## Project Structure
+- **High Fidelity:** Preserves the original layout, including complex tables and nested structures.
+- **Smart OCR:** Automatically extracts text from images within the PDF using RapidOCR.
+- **Auto-Detection:** Lingua identifies the source language instantly.
+- **Async Power:** Built with `asyncio` for high-concurrency translation using Gemini 2.5 Pro.
+- **Markdown-Centric:** Uses Markdown as an intermediate format for precise LLM processing.
 
-```
-pdf_translator/                          # Project root
-├── .env                                 # Single shared environment
-├── .env.example                         # Configuration template
-├── .gitignore
-├── README.md                            # This file
-├── storage/
-│   ├── downloads/                       # Temporary PDF storage
-│   └── outputs/                         # Translated PDF output
-│
+---
+
+## 🛠️ Tech Stack
+
+| Layer | Technology |
+| :--- | :--- |
+| **Interface** | `FastAPI` + `Aiogram v3` |
+| **AI Orchestration** | `LangChain` (LCEL) |
+| **Language Model** | `Gemini 2.5 Pro` (via OpenRouter) |
+| **PDF Intelligence** | `Docling` (Deep Search) |
+| **OCR Engine** | `RapidOCR` (ONNX Runtime) |
+| **Rendering** | `Pandoc` + `WeasyPrint` |
+
+---
+
+## 📂 Project Structure
+
+```text
+pdf_translator/
+├── .env.example         # Configuration template
+├── README.md            # You are here
+├── storage/             # Temp file processing
 └── app/
-    ├── extractor/                       # Document extractor utility
-    │   └── get_document.py
-    │
-    └── bot_translator/                  # Telegram bot (main project)
+    ├── extractor/       # Standalone extraction tools
+    └── bot_translator/  # Core Telegram Bot logic
         ├── app/
-        │   ├── main.py              # FastAPI + bot polling entry point
-        │   ├── config.py            # Pydantic settings (loads ../../.env)
-        │   ├── bot/
-        │   │   ├── router.py        # Aiogram handlers (FSM flow)
-        │   │   ├── keyboards.py     # Inline keyboards
-        │   │   └── states.py        # FSM states
-        │   ├── api/
-        │   │   └── routes.py        # Health / status endpoints
-        │   ├── services/
-        │   │   ├── pdf_service.py       # Docling extraction
-        │   │   ├── ocr_service.py       # RapidOCR
-        │   │   ├── language_service.py  # Lingua detection
-        │   │   ├── translation_service.py  # LangChain + OpenAI
-        │   │   ├── render_service.py    # Markdown → PDF
-        │   │   └── telegram_service.py  # Aiogram wrapper
-        │   ├── langchain/
-        │   │   ├── chain.py         # LCEL chain construction
-        │   │   ├── prompts.py       # Translation prompts
-        │   │   └── splitter.py      # Text splitter
-        │   ├── core/
-        │   │   ├── logging.py       # Logging configuration
-        │   │   └── exceptions.py    # Error hierarchy
-        │   ├── models/
-        │   │   └── document.py      # Pydantic document models
-        │   └── utils/
-        │       └── file_helpers.py  # File validation, paths
-        ├── tests/
-        │   ├── test_language_service.py
-        │   ├── test_translation_service.py
-        │   ├── test_file_helpers.py
-        │   └── test_prompts.py
-        └── requirements.txt
-```
+        │   ├── bot/     # FSM & Handlers
+        │   ├── services/# Business Logic (OCR, PDF, AI)
+        │   └── langchain/# Translation chains
+        └── tests/       # Quality assurance
 ```
 
-## Installation
+---
 
-### Prerequisites
+## ⚙️ Installation & Setup
 
-- Python 3.11+
-- Pandoc and WeasyPrint (for PDF rendering)
+### 1. System Dependencies
+You need **Pandoc** and **WeasyPrint** libraries installed on your OS:
 
 ```bash
-# Install pandoc (Ubuntu/Debian)
-sudo apt-get install pandoc
+# Ubuntu/Debian
+sudo apt-get install pandoc libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0
 
-# Install pandoc (macOS)
-brew install pandoc
-
-# Install WeasyPrint dependencies (Ubuntu/Debian)
-sudo apt-get install libpango-1.0-0 libpangocairo-1.0-0 libgdk-pixbuf2.0-0 libffi-dev libcairo2
-
-# Install WeasyPrint (macOS)
-brew install weasyprint
+# macOS
+brew install pandoc weasyprint
 ```
 
-### Setup
-
+### 2. Python Environment
 ```bash
-# Clone the repository
-cd pdf_translator
-
-# Create virtual environment
 python -m venv venv
-source venv/bin/activate  # Linux/macOS
-
-# Install dependencies
+source venv/bin/activate
 cd app/bot_translator
 pip install -r requirements.txt
-
-# Configure environment (single .env at project root)
-cp .env.example .env
-# Edit .env with your tokens:
-#   TELEGRAM_BOT_TOKEN=your_telegram_bot_token
-#   OPENAI_API_KEY=your_openai_api_key
 ```
 
-## Usage
+### 3. Configuration
+Copy the template and fill in your API keys:
+```bash
+cp .env.example .env
+```
 
-### Run with Uvicorn
+---
 
+## 📖 Usage
+
+### Running the Bot
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8000 --reload
 ```
 
-### Run directly (Python)
-
-```python
-python -m app.main
-```
-
 ### Bot Commands
+- `/start`: Initialize interaction and see instructions.
+- `/cancel`: Reset current translation state.
 
-| Command | Description |
-|---------|-------------|
-| `/start` | Welcome message and instructions |
-| `/cancel` | Cancel current operation |
+---
 
-### Workflow
+## 🧪 Development
 
-1. Open Telegram and find your bot
-2. Send `/start`
-3. Send a PDF file (max 50 MB)
-4. The bot detects the source language automatically
-5. Select the target language from the inline keyboard
-6. Wait for translation — the bot returns the translated PDF
-
-## API Endpoints
-
-| Endpoint | Description |
-|----------|-------------|
-| `GET /` | App info |
-| `GET /api/v1/health` | Health check |
-| `GET /api/v1/status` | Translation stats |
-
-## Environment Variables
-
-All variables are set in a single `.env` file at the **project root** (`pdf_translator/.env`).
-Both `app/extractor/` and `app/bot_translator/` read from this file via relative paths.
-
-| Variable | Required | Default | Description |
-|----------|----------|---------|-------------|
-| `TELEGRAM_BOT_TOKEN` | Yes | — | Telegram Bot API token |
-| `OPENAI_API_KEY` | Yes | — | OpenAI / OpenRouter API key |
-| `BASE_URL` | No | `https://openrouter.ai/api/v1` | API base URL |
-| `LLM_MODEL` | No | `openai/gpt-oss-120b:free` | Model name |
-| `MAX_FILE_SIZE_MB` | No | `50` | Maximum PDF file size |
-| `LOG_LEVEL` | No | `INFO` | Logging level |
-
-## Development
-
-### Running Tests
-
+Run the test suite to ensure everything is working correctly:
 ```bash
 pytest tests/ -v
 ```
 
-### Code Quality
+---
 
-```bash
-ruff check app/
-mypy app/ --ignore-missing-imports
-```
+## 📄 License
+Distributed under the **MIT License**. See `LICENSE` for more information.
 
-## Error Handling
-
-The system handles:
-- Invalid file types (non-PDF)
-- File size exceeding limit
-- Corrupted or unreadable PDFs
-- OCR failures (non-fatal, continues with available text)
-- Translation chunk failures (falls back to original text for failed chunks)
-- Timeouts and network errors
-
-## License
-
-MIT
+<p align="center">Built with ❤️ for the AI Community</p>
